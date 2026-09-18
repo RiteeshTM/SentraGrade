@@ -5,6 +5,7 @@ description = "Explainable Out-of-Distribution Detection for Foreign Object Reje
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "captum>=0.9.0",
+    "fastapi>=0.141.1",
     "grad-cam>=1.5.5",
     "jupyterlab>=4.6.2",
     "matplotlib>=3.11.1",
@@ -13,6 +14,7 @@ dependencies = [
     "opencv-python>=5.0.0.93",
     "pandas>=3.0.5",
     "pillow>=12.3.0",
+    "python-multipart>=0.0.32",
     "requests>=2.34.2",
     "scikit-learn>=1.9.0",
     "scipy>=1.18.0",
@@ -23,4 +25,5 @@ dependencies = [
     "torch>=2.13.0",
     "torchvision>=0.28.0",
     "tqdm>=4.70.0",
+    "uvicorn>=0.53.0",
 ]

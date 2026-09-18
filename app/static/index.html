@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SentraGrade — Inspection Line</title>
+<link rel="icon" href="data:," />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="scanlines" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="wordmark">
+    <span class="wordmark-main">SENTRA<span class="accent">GRADE</span></span>
+    <span class="wordmark-sub">FOREIGN OBJECT REJECTION &middot; LINE 01</span>
+  </div>
+  <div class="status-pill" id="statusPill" data-state="idle">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span id="statusText">LINE IDLE</span>
+  </div>
+</header>
+
+<main>
+  <section class="chamber-wrap">
+    <div class="chamber" id="chamber" data-state="idle" tabindex="0" role="button"
+         aria-label="Upload a produce image to scan">
+      <span class="bracket bracket-tl" aria-hidden="true"></span>
+      <span class="bracket bracket-tr" aria-hidden="true"></span>
+      <span class="bracket bracket-bl" aria-hidden="true"></span>
+      <span class="bracket bracket-br" aria-hidden="true"></span>
+
+      <div class="chamber-empty" id="chamberEmpty">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 16V4M12 4L7 9M12 4l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p class="chamber-empty-title">DROP ITEM ON BELT</p>
+        <p class="chamber-empty-sub">or click to browse &middot; single item, plain background works best</p>
+      </div>
+
+      <img id="chamberImage" class="chamber-image" alt="" hidden />
+      <div class="beam" id="beam" aria-hidden="true"></div>
+
+      <div class="stamp" id="stamp" aria-hidden="true">ACCEPTED</div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" hidden />
+
+    <div class="log-panel" id="logPanel" hidden>
+      <div class="log-lines" id="logLines"></div>
+    </div>
+  </section>
+
+  <section class="result-panel" id="resultPanel" hidden>
+    <div class="stat-grid">
+      <div class="stat-tile">
+        <span class="stat-label">Nearest known class</span>
+        <span class="stat-value" id="statClass">&mdash;</span>
+      </div>
+      <div class="stat-tile">
+        <span class="stat-label">Classifier confidence</span>
+        <span class="stat-value" id="statConfidence">&mdash;</span>
+      </div>
+      <div class="stat-tile stat-tile-wide" id="tileEnergy">
+        <span class="stat-label">Energy score vs. accept threshold</span>
+        <div class="gauge">
+          <div class="gauge-track">
+            <div class="gauge-fill" id="gaugeFill"></div>
+            <div class="gauge-marker" id="gaugeMarker"></div>
+          </div>
+          <div class="gauge-readout">
+            <span id="statEnergy">&mdash;</span>
+            <span class="gauge-readout-dim">threshold <span id="statThreshold">&mdash;</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <span class="signal-chip" id="chipMsp">MSP <span id="statMsp">&mdash;</span></span>
+      <span class="signal-chip" id="chipProto">PROTO-DIST <span id="statProto">&mdash;</span></span>
+      <button class="view-toggle" id="viewToggle" type="button">SHOW INSPECTION HEATMAP</button>
+    </div>
+
+    <button class="rescan-btn" id="rescanBtn" type="button">SCAN ANOTHER ITEM</button>
+  </section>
+
+  <p class="error-msg" id="errorMsg" hidden></p>
+</main>
+
+<footer class="footer" id="footer">
+  ResNet-50 backbone &middot; energy-based OOD scoring &middot; calibrated on fold 0 (held out: <span id="footerHeldOut">&hellip;</span>) &middot; SentraGrade case study
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
