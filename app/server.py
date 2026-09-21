@@ -243,4 +243,14 @@ async def scan(file: UploadFile = File(...)):
     }
 
 
-app.mount("/", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="static")
+class NoCacheStaticFiles(StaticFiles):
+    """Always revalidate, so UI edits show up on a normal reload instead of
+    the browser serving a heuristically cached copy of the old files."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/", NoCacheStaticFiles(directory=Path(__file__).parent / "static", html=True), name="static")

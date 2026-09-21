@@ -2,6 +2,7 @@
   const chamber = document.getElementById("chamber");
   const chamberEmpty = document.getElementById("chamberEmpty");
   const chamberImage = document.getElementById("chamberImage");
+  const item = document.getElementById("item");
   const fileInput = document.getElementById("fileInput");
   const logPanel = document.getElementById("logPanel");
   const logLines = document.getElementById("logLines");
@@ -31,7 +32,9 @@
     "COMPUTING ENERGY SCORE...",
     "COMPARING AGAINST KNOWN-CLASS THRESHOLD...",
   ];
-  const MIN_SCAN_MS = 2600;
+  // 1.2s for the item to ride in on the belt (see --enter in style.css), then
+  // one full 2s beam sweep before the verdict.
+  const MIN_SCAN_MS = 3200;
 
   let lastResult = null;
   let objectUrl = null;
@@ -58,6 +61,7 @@
     setChamberState("idle");
     setStatus("idle", "LINE IDLE");
     chamberEmpty.hidden = false;
+    item.hidden = true;
     chamberImage.hidden = true;
     chamberImage.src = "";
     logPanel.hidden = true;
@@ -141,6 +145,7 @@
     chamberEmpty.hidden = true;
     chamberImage.src = objectUrl;
     chamberImage.hidden = false;
+    item.hidden = false;
 
     setChamberState("scanning");
     setStatus("scanning", "SCANNING…");

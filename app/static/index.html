@@ -43,10 +43,22 @@
         <p class="chamber-empty-sub">or click to browse &middot; single item, plain background works best</p>
       </div>
 
-      <img id="chamberImage" class="chamber-image" alt="" hidden />
-      <div class="beam" id="beam" aria-hidden="true"></div>
+      <div class="gantry" aria-hidden="true"><span class="gantry-lens"></span></div>
+      <div class="scan-cone" aria-hidden="true"></div>
 
-      <div class="stamp" id="stamp" aria-hidden="true">ACCEPTED</div>
+      <div class="belt" aria-hidden="true">
+        <div class="belt-surface"></div>
+        <div class="belt-under"></div>
+      </div>
+
+      <div class="item" id="item" hidden>
+        <div class="item-frame">
+          <img id="chamberImage" class="chamber-image" alt="" hidden />
+          <div class="scan-grid" aria-hidden="true"></div>
+          <div class="beam" id="beam" aria-hidden="true"></div>
+        </div>
+        <div class="stamp" id="stamp" aria-hidden="true">ACCEPTED</div>
+      </div>
     </div>
 
     <input type="file" id="fileInput" accept="image/*" hidden />

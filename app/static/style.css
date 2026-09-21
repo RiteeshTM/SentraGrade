@@ -154,15 +154,19 @@ main {
   overflow: hidden;
   transition: border-color 0.25s ease, background 0.25s ease;
   outline: none;
+  /* --tone colours the scanner head, light curtain and item outline;
+     --enter is how far the item rides in along the belt (px) */
+  --tone: var(--border-bright);
+  --enter: 480px;
 }
 
 .chamber:focus-visible { border-color: var(--amber); }
 
-.chamber[data-state="armed"] { border-style: solid; border-color: var(--amber); background: #12151c; }
-.chamber[data-state="scanning"] { border-style: solid; border-color: var(--amber); }
-.chamber[data-state="accepted"] { border-style: solid; border-color: var(--green); }
-.chamber[data-state="rejected"] { border-style: solid; border-color: var(--red); }
-.chamber[data-state="error"] { border-style: solid; border-color: var(--red); }
+.chamber[data-state="armed"] { border-style: solid; border-color: var(--amber); background: #12151c; --tone: var(--amber); }
+.chamber[data-state="scanning"] { border-style: solid; border-color: var(--amber); --tone: var(--amber); }
+.chamber[data-state="accepted"] { border-style: solid; border-color: var(--green); --tone: var(--green); }
+.chamber[data-state="rejected"] { border-style: solid; border-color: var(--red); --tone: var(--red); }
+.chamber[data-state="error"] { border-style: solid; border-color: var(--red); --tone: var(--red); }
 
 .bracket {
   position: absolute;
@@ -189,7 +193,8 @@ main {
   align-items: center;
   gap: 10px;
   color: var(--text-faint);
-  padding: 24px;
+  /* bottom padding keeps the prompt clear of the belt */
+  padding: 24px 24px 108px;
   text-align: center;
 }
 
@@ -213,6 +218,201 @@ main {
   line-height: 1.5;
 }
 
+/* ---------- inspection bay: gantry, belt, item ---------- */
+
+.gantry {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  width: 96px;
+  height: 20px;
+  margin-left: -48px;
+  background: linear-gradient(#252d3b, #1a202a);
+  border: 1px solid var(--border-bright);
+  border-radius: 4px 4px 9px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+/* short mounting arms either side of the scanner head */
+.gantry::before,
+.gantry::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  width: 96px;
+  height: 2px;
+  background: var(--border);
+}
+.gantry::before { right: 100%; }
+.gantry::after { left: 100%; }
+
+.gantry-lens {
+  width: 40px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--tone);
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.chamber[data-state="scanning"] .gantry-lens,
+.chamber[data-state="accepted"] .gantry-lens,
+.chamber[data-state="rejected"] .gantry-lens {
+  box-shadow: 0 0 10px 2px var(--tone);
+}
+.chamber[data-state="scanning"] .gantry-lens {
+  animation: lens-pulse 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes lens-pulse {
+  from { opacity: 0.55; }
+  to   { opacity: 1; }
+}
+
+/* light curtain from the scanner head down onto the item */
+.scan-cone {
+  position: absolute;
+  top: 44px;
+  bottom: 74px;
+  left: 50%;
+  width: 64%;
+  margin-left: -32%;
+  background: var(--tone);
+  clip-path: polygon(43% 0, 57% 0, 100% 100%, 0 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent 92%);
+  mask-image: linear-gradient(to bottom, #000, transparent 92%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.chamber[data-state="scanning"] .scan-cone {
+  animation:
+    cone-on 0.3s ease-out 1s forwards,
+    cone-pulse 1s ease-in-out 1.3s infinite;
+}
+
+/* verdict flash in the result colour, then the curtain drops */
+.chamber[data-state="accepted"] .scan-cone,
+.chamber[data-state="rejected"] .scan-cone {
+  animation: cone-flash 1s ease-out forwards;
+}
+
+@keyframes cone-on    { from { opacity: 0; } to { opacity: 0.32; } }
+@keyframes cone-pulse { 0%, 100% { opacity: 0.32; } 50% { opacity: 0.5; } }
+@keyframes cone-flash { from { opacity: 0.75; } to { opacity: 0; } }
+
+.belt {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 84px;
+  background: #0f131a;
+  z-index: 1;
+}
+
+.belt-surface {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50px;
+  background: linear-gradient(#262e3d 0%, #1b212c 45%, #161b23 100%);
+  border-top: 1px solid var(--border-bright);
+  border-bottom: 2px solid #0b0e13;
+  overflow: hidden;
+}
+
+/* moving tread — a 24px tile so the loop is seamless */
+.belt-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.09) 0 2px, transparent 2px) 0 0 / 24px 100%;
+  animation: belt-idle 1.8s linear infinite;
+}
+
+.chamber[data-state="armed"] .belt-surface::before { animation-duration: 0.7s; }
+
+/* item rides in for --enter px; the belt tread travels the same distance on the
+   same easing so the two stay locked together, then the belt stops */
+.chamber[data-state="scanning"] .belt-surface::before {
+  animation: belt-enter 1.2s cubic-bezier(0.16, 0.84, 0.3, 1) both;
+}
+
+.chamber[data-state="accepted"] .belt-surface::before,
+.chamber[data-state="rejected"] .belt-surface::before,
+.chamber[data-state="error"] .belt-surface::before {
+  animation: none;
+}
+
+@keyframes belt-idle  { to { background-position-x: 24px; } }
+@keyframes belt-enter { from { background-position-x: 0; } to { background-position-x: var(--enter); } }
+
+.belt-under {
+  position: absolute;
+  top: 50px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: repeating-linear-gradient(90deg, #12161d 0 38px, #0c1016 38px 40px);
+}
+
+.item {
+  position: absolute;
+  left: 23%;
+  width: 54%;
+  bottom: 70px;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel-2);
+  border: 1.5px solid var(--tone);
+  border-radius: 6px;
+  box-shadow: 0 16px 20px -10px rgba(0, 0, 0, 0.75);
+  z-index: 2;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.item[hidden] { display: none; }
+
+.chamber[data-state="scanning"] .item {
+  box-shadow: 0 0 24px rgba(255, 176, 32, 0.25), 0 16px 20px -10px rgba(0, 0, 0, 0.75);
+  animation: item-enter 1.2s cubic-bezier(0.16, 0.84, 0.3, 1) both;
+}
+.chamber[data-state="accepted"] .item {
+  box-shadow: 0 0 24px rgba(62, 207, 110, 0.25), 0 16px 20px -10px rgba(0, 0, 0, 0.75);
+}
+.chamber[data-state="rejected"] .item {
+  box-shadow: 0 0 24px rgba(255, 90, 90, 0.3), 0 16px 20px -10px rgba(0, 0, 0, 0.75);
+  animation: item-shake 0.45s ease-out;
+}
+
+@keyframes item-enter {
+  from { transform: translateX(calc(var(--enter) * -1)); }
+  to   { transform: none; }
+}
+
+@keyframes item-shake {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(2px); }
+}
+
+.item-frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
 .chamber-image {
   width: 100%;
   height: 100%;
@@ -221,6 +421,23 @@ main {
 }
 
 .chamber-image[hidden] { display: none; }
+
+.scan-grid {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(255, 176, 32, 0.22) 1px, transparent 1px) 0 0 / 16px 16px,
+    linear-gradient(90deg, rgba(255, 176, 32, 0.22) 1px, transparent 1px) 0 0 / 16px 16px;
+  opacity: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.chamber[data-state="scanning"] .scan-grid {
+  animation: grid-on 0.4s ease-out 1.2s forwards;
+}
+
+@keyframes grid-on { to { opacity: 1; } }
 
 .beam {
   position: absolute;
@@ -233,10 +450,14 @@ main {
   z-index: 4;
 }
 
+/* waits for the item to stop under the scanner, then sweeps down and back once per 2s */
 .chamber[data-state="scanning"] .beam {
-  opacity: 1;
-  animation: sweep 1.7s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  animation:
+    beam-on 0.01s linear 1.2s forwards,
+    sweep 2s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite;
 }
+
+@keyframes beam-on { to { opacity: 1; } }
 
 @keyframes sweep {
   0%   { top: 0%; }
@@ -257,7 +478,9 @@ main {
   transform: rotate(-8deg) scale(0.6);
   opacity: 0;
   pointer-events: none;
-  mix-blend-mode: screen;
+  white-space: nowrap;
+  /* dark backing so the stamp stays readable over pale photos */
+  background: rgba(10, 12, 16, 0.62);
 }
 
 .chamber[data-state="accepted"] .stamp,
@@ -484,7 +707,8 @@ main {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .beam, .stamp, .status-dot, .log-lines span, .result-panel {
+  .beam, .stamp, .status-dot, .log-lines span, .result-panel,
+  .item, .belt-surface::before, .scan-cone, .scan-grid, .gantry-lens {
     animation: none !important;
   }
   .stamp { opacity: 1; transform: rotate(-8deg) scale(1); }
