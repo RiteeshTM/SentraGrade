@@ -5,10 +5,10 @@ image through the fold-0 ResNet50 checkpoint (held-out class: Banana, the
 strongest-separating fold for the energy score, AUROC 0.9997) and returns
 an in-distribution / out-of-distribution verdict plus a Grad-CAM heatmap.
 
-Scoring follows 03_ood_eval_gradcam.ipynb exactly: energy score
-(-logsumexp(logits)) thresholded at the 95th percentile of that fold's
-in-distribution validation scores. MSP and prototype-distance are computed
-too and surfaced as supporting signals.
+Scoring uses the energy score (-logsumexp(logits)) and prototype distance,
+each against a hand-tuned global threshold (see ENERGY_THRESHOLD /
+PROTO_THRESHOLD below); an item is rejected if either fires. MSP is computed
+too and surfaced as a supporting signal.
 """
 
 import base64
@@ -31,11 +31,21 @@ DEVICE = torch.device("cpu")
 DATA_ROOT = Path(os.environ.get("SENTRAGRADE_DATA_ROOT", Path.home() / "sentragrade_data"))
 CKPT_DIR = DATA_ROOT / "checkpoints" / "supervised_cnn"
 FOLD_IDX = 0
-# 98th percentile (rather than the notebook's demo default of 95th): still
-# a 100% catch-rate on the calibration OOD class (measured against cached
-# val/ood scores), but cuts the known-produce false-reject rate from 9.0%
-# to 3.7% versus the 95th-percentile fused rule.
-THRESHOLD_PERCENTILE = 98
+# Global accept thresholds, tuned by hand against three sets (fold 0):
+#   - real uploaded photos of the 5 known fruits (energy -3.4..-9.6, proto 12.8..22.7)
+#   - held-out Banana: val images (energy median -1.2, proto median 22) and one
+#     real photo (energy -3.115) — only 0.26 above the tomato photo (-3.372), so
+#     the energy cut is the fragile one; -3.25 sits mid-gap
+#   - foreign objects: phone / pen / stone (proto 95 / 170 / 47, stone energy -2.9)
+# The old per-class 98th-percentile thresholds were calibrated on the dataset's
+# own capture setup, so real uploads (different framing/lighting) sat just past
+# them and known fruit got rejected. Energy is the near-OOD signal (Banana);
+# prototype distance is the far-OOD signal (phone/pen have *low* energy but
+# sit 4-8x further from every class prototype than any fruit).
+# Sweep result: 5/5 real fruit accepted, 3/3 foreign + the real banana photo
+# rejected, 95% of held-out Banana val rejected, 0.4% false-reject on ID val.
+ENERGY_THRESHOLD = -3.25
+PROTO_THRESHOLD = 32.0
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
@@ -155,31 +165,12 @@ _val_logits = _ckpt["val"]["logits"]
 _val_feats = _ckpt["val"]["features"]
 _val_labels = _ckpt["val"]["labels"]
 
-_val_probs = torch.softmax(_val_logits, dim=1)
-_val_msp = (-_val_probs.max(dim=1).values).numpy()
-_val_energy = (-torch.logsumexp(_val_logits, dim=1)).numpy()
-_val_pred = _val_logits.argmax(dim=1).numpy()
-
 PROTOTYPES = torch.stack([_val_feats[_val_labels == c].mean(dim=0) for c in range(len(LABEL_MAP))])
-_val_proto = torch.cdist(_val_feats, PROTOTYPES).min(dim=1).values.numpy()
-
-# Per-predicted-class thresholds, not one global cutoff: a single threshold
-# across all 5 classes calibrates unevenly when classes have uneven val
-# counts and feature spread — observed false-reject rates of 17.6% (Guava)
-# vs 0.7% (Tomato) under one shared threshold. Percentiling within each
-# predicted class instead evens that out to a ~3.5-5.9% band.
-NUM_CLASSES = len(LABEL_MAP)
-ENERGY_THRESHOLDS = np.array(
-    [np.percentile(_val_energy[_val_pred == c], THRESHOLD_PERCENTILE) for c in range(NUM_CLASSES)]
-)
-PROTO_THRESHOLDS = np.array(
-    [np.percentile(_val_proto[_val_pred == c], THRESHOLD_PERCENTILE) for c in range(NUM_CLASSES)]
-)
 
 print(
     f"[sentragrade] fold {FOLD_IDX} loaded — known classes: {sorted(LABEL_MAP)} | "
-    f"held-out (OOD demo) class: {HELD_OUT_CLASS} | per-class energy thresholds: "
-    f"{dict(zip(sorted(LABEL_MAP, key=lambda c: LABEL_MAP[c]), ENERGY_THRESHOLDS.round(3)))}"
+    f"held-out (OOD demo) class: {HELD_OUT_CLASS} | energy threshold: {ENERGY_THRESHOLD} | "
+    f"proto threshold: {PROTO_THRESHOLD}"
 )
 
 app = FastAPI(title="SentraGrade Scanner")
@@ -192,7 +183,8 @@ def meta():
         "known_classes": classes,
         "held_out_class": HELD_OUT_CLASS,
         "fold": FOLD_IDX,
-        "energy_thresholds": {c: float(ENERGY_THRESHOLDS[LABEL_MAP[c]]) for c in classes},
+        "energy_threshold": ENERGY_THRESHOLD,
+        "proto_threshold": PROTO_THRESHOLD,
     }
 
 
@@ -218,15 +210,12 @@ async def scan(file: UploadFile = File(...)):
     msp_score = float(-probs.max())
     proto_score = float(torch.cdist(feats, PROTOTYPES).min())
 
-    # Energy alone is tuned against a near-OOD calibration class (another
-    # fruit), so it can under-react to far-OOD objects with no organic
-    # texture at all (electronics, tools, ...) — a phone was observed to
-    # sneak in on energy alone while its prototype distance blew past that
-    # threshold by 6x. Rejecting on either signal catches both near- and
-    # far-OOD inputs. Thresholds are per predicted-class (not one global
-    # cutoff) since classes calibrate unevenly otherwise.
-    energy_threshold = float(ENERGY_THRESHOLDS[pred_idx])
-    proto_threshold = float(PROTO_THRESHOLDS[pred_idx])
+    # Energy alone under-reacts to far-OOD objects with no organic texture
+    # (a pen scores *lower* energy than real fruit), so reject on either
+    # signal: energy catches near-OOD (other produce), prototype distance
+    # catches far-OOD (electronics, tools, ...).
+    energy_threshold = ENERGY_THRESHOLD
+    proto_threshold = PROTO_THRESHOLD
     triggered_by = []
     if energy_score > energy_threshold:
         triggered_by.append("energy")

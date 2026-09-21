@@ -193,6 +193,10 @@ main {
   text-align: center;
 }
 
+/* display:flex above would otherwise override the [hidden] attribute and leave
+   the prompt squeezed in beside the scanned image */
+.chamber-empty[hidden] { display: none; }
+
 .chamber-empty-title {
   font-family: var(--font-mono);
   font-size: 12.5px;
