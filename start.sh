@@ -13,7 +13,11 @@ if lsof -ti "tcp:${PORT}" >/dev/null 2>&1; then
 fi
 
 echo "Starting SentraGrade scanner on ${URL} ..."
-uv run uvicorn app.server:app --port "${PORT}" --host 127.0.0.1 &
+if command -v uv >/dev/null 2>&1; then
+  uv run uvicorn app.server:app --port "${PORT}" --host 127.0.0.1 &
+else
+  python3 -m uvicorn app.server:app --port "${PORT}" --host 127.0.0.1 &
+fi
 SERVER_PID=$!
 
 trap 'kill "$SERVER_PID" 2>/dev/null' EXIT

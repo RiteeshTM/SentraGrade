@@ -19,9 +19,28 @@
     <span class="wordmark-main">SENTRA<span class="accent">GRADE</span></span>
     <span class="wordmark-sub">FOREIGN OBJECT REJECTION &middot; LINE 01</span>
   </div>
-  <div class="status-pill" id="statusPill" data-state="idle">
-    <span class="status-dot" aria-hidden="true"></span>
-    <span id="statusText">LINE IDLE</span>
+  <div class="topbar-actions">
+    <div class="model-switch" id="modelSwitch" role="radiogroup" aria-label="Classifier Backbone">
+      <button class="model-btn active" data-model="resnet50" type="button" id="btnResNet" title="ResNet-50 Supervised CNN">
+        <span class="model-dot"></span>
+        <span class="model-name">RESNET-50</span>
+        <span class="model-badge">CNN</span>
+      </button>
+      <button class="model-btn" data-model="dinov2" type="button" id="btnDINOv2" title="DINOv2 Self-Supervised Vision Transformer">
+        <span class="model-dot"></span>
+        <span class="model-name">DINOV2</span>
+        <span class="model-badge">SSL ViT</span>
+      </button>
+      <button class="model-btn" data-model="vit" type="button" id="btnViT" title="ViT-Base Supervised Vision Transformer">
+        <span class="model-dot"></span>
+        <span class="model-name">VIT-BASE</span>
+        <span class="model-badge">ViT</span>
+      </button>
+    </div>
+    <div class="status-pill" id="statusPill" data-state="idle">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span id="statusText">LINE IDLE</span>
+    </div>
   </div>
 </header>
 
@@ -70,6 +89,10 @@
 
   <section class="result-panel" id="resultPanel" hidden>
     <div class="stat-grid">
+      <div class="stat-tile stat-tile-model">
+        <span class="stat-label">Active Backbone</span>
+        <span class="stat-value" id="statModel">RESNET-50</span>
+      </div>
       <div class="stat-tile">
         <span class="stat-label">Nearest known class</span>
         <span class="stat-value" id="statClass">&mdash;</span>
@@ -106,7 +129,7 @@
 </main>
 
 <footer class="footer" id="footer">
-  ResNet-50 backbone &middot; energy-based OOD scoring &middot; calibrated on fold 0 (held out: <span id="footerHeldOut">&hellip;</span>) &middot; SentraGrade case study
+  <span id="footerModel">ResNet-50</span> backbone &middot; energy-based OOD scoring &middot; calibrated on fold 0 (held out: <span id="footerHeldOut">&hellip;</span>) &middot; SentraGrade case study
 </footer>
 
 <script src="script.js"></script>

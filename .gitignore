@@ -219,7 +219,14 @@ __marimo__/
 
 # macOS
 .DS_Store
+**/.DS_Store
 
 # Image datasets / raw data archives
 TR-6/
 sentragrade_data.zip
+
+# Model checkpoints (large binary weights)
+*.pt
+*.pth
+*.bin
+*.onnx

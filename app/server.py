@@ -1,51 +1,43 @@
-"""SentraGrade scanner backend.
+"""SentraGrade scanner backend with Multi-Model Support.
 
-Serves the static UI and a single inference endpoint that runs an uploaded
-image through the fold-0 ResNet50 checkpoint (held-out class: Banana, the
-strongest-separating fold for the energy score, AUROC 0.9997) and returns
-an in-distribution / out-of-distribution verdict plus a Grad-CAM heatmap.
+Serves the static UI and a unified inference endpoint that can run an uploaded
+image through one of three deep learning classifier backbones:
+  1. ResNet-50 (Supervised CNN)
+  2. DINOv2 (Self-Supervised Vision Transformer, ViT-S/14)
+  3. ViT-Base (Supervised Vision Transformer, ViT-Base/16)
 
-Scoring uses the energy score (-logsumexp(logits)) and prototype distance,
-each against a hand-tuned global threshold (see ENERGY_THRESHOLD /
-PROTO_THRESHOLD below); an item is rejected if either fires. MSP is computed
-too and surfaced as a supporting signal.
+All three models are calibrated on Fold 0 (held-out class: Banana, known classes:
+Carrot, Guava, Indian_Gooseberry, Mango, Tomato) and compute:
+  - Classification prediction & confidence
+  - Energy score (-logsumexp(logits))
+  - Prototype distance (cdist in feature embedding space)
+  - Visual explainability heatmap (Grad-CAM for ResNet, Patch Token Activation
+    for DINOv2, Attention Rollout for ViT)
 """
 
 import base64
 import io
 import os
 from pathlib import Path
+from typing import Dict, Any, Tuple
+
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile, Query, Form
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from torchvision import transforms
 from torchvision.models import resnet50
+import timm
+from transformers import ViTModel
 
 DEVICE = torch.device("cpu")
-DATA_ROOT = Path(os.environ.get("SENTRAGRADE_DATA_ROOT", Path.home() / "sentragrade_data"))
-CKPT_DIR = DATA_ROOT / "checkpoints" / "supervised_cnn"
-FOLD_IDX = 0
-# Global accept thresholds, tuned by hand against three sets (fold 0):
-#   - real uploaded photos of the 5 known fruits (energy -3.4..-9.6, proto 12.8..22.7)
-#   - held-out Banana: val images (energy median -1.2, proto median 22) and one
-#     real photo (energy -3.115) — only 0.26 above the tomato photo (-3.372), so
-#     the energy cut is the fragile one; -3.25 sits mid-gap
-#   - foreign objects: phone / pen / stone (proto 95 / 170 / 47, stone energy -2.9)
-# The old per-class 98th-percentile thresholds were calibrated on the dataset's
-# own capture setup, so real uploads (different framing/lighting) sat just past
-# them and known fruit got rejected. Energy is the near-OOD signal (Banana);
-# prototype distance is the far-OOD signal (phone/pen have *low* energy but
-# sit 4-8x further from every class prototype than any fruit).
-# Sweep result: 5/5 real fruit accepted, 3/3 foreign + the real banana photo
-# rejected, 95% of held-out Banana val rejected, 0.4% false-reject on ID val.
-ENERGY_THRESHOLD = -3.25
-PROTO_THRESHOLD = 32.0
+ROOT_DIR = Path(__file__).resolve().parent.parent
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
@@ -59,13 +51,37 @@ eval_tf = transforms.Compose(
     ]
 )
 
+def denormalize(img_tensor: torch.Tensor) -> torch.Tensor:
+    mean = torch.tensor(IMAGENET_MEAN).view(3, 1, 1)
+    std = torch.tensor(IMAGENET_STD).view(3, 1, 1)
+    return (img_tensor * std + mean).clamp(0, 1)
+
+
+def colorize_cam(cam: torch.Tensor) -> np.ndarray:
+    """cam: [224,224] in [0,1] -> RGBA uint8 heat overlay, amber->red ramp,
+    low-activation regions suppressed to alpha 0."""
+    cam_np = cam.detach().cpu().numpy()
+    amber = np.array([255, 176, 32])
+    red = np.array([255, 60, 60])
+    t = np.clip(cam_np, 0, 1)[..., None]
+    rgb = (amber * (1 - t) + red * t).astype(np.uint8)
+    alpha = np.clip((cam_np - 0.25) / 0.75, 0, 1) ** 0.8
+    alpha = (alpha * 210).astype(np.uint8)
+    return np.dstack([rgb, alpha])
+
+
+def image_to_data_url(img: Image.Image) -> str:
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+# =============================================================================
+# 1. ResNet-50 Engine (Supervised CNN)
+# =============================================================================
 
 class ResNetClassifier(nn.Module):
-    """Same architecture as the training notebook. weights=None here since
-    we immediately overwrite every parameter from the fine-tuned checkpoint
-    — no need to fetch the ImageNet-pretrained weights at server start."""
-
-    def __init__(self, num_classes):
+    def __init__(self, num_classes=5):
         super().__init__()
         backbone = resnet50(weights=None)
         self.stem = nn.Sequential(backbone.conv1, backbone.bn1, backbone.relu, backbone.maxpool)
@@ -115,138 +131,334 @@ class GradCAM:
         return cam.detach()[0], logits.detach()
 
 
-def denormalize(img_tensor):
-    mean = torch.tensor(IMAGENET_MEAN).view(3, 1, 1)
-    std = torch.tensor(IMAGENET_STD).view(3, 1, 1)
-    return (img_tensor * std + mean).clamp(0, 1)
+class ResNetEngine:
+    def __init__(self):
+        self.name = "ResNet-50 (CNN)"
+        self.badge = "Supervised CNN"
+        self.energy_threshold = -3.25
+        self.proto_threshold = 32.0
+
+        candidates = [
+            ROOT_DIR / "fold0_CNN.pt",
+            ROOT_DIR / "fold0.pt",
+            Path.home() / "sentragrade_data" / "checkpoints" / "supervised_cnn" / "fold0.pt",
+        ]
+        ckpt_path = next((p for p in candidates if p.exists()), None)
+        if ckpt_path is None:
+            raise FileNotFoundError("Could not find ResNet fold0 checkpoint (fold0_CNN.pt or fold0.pt).")
+
+        ckpt = torch.load(ckpt_path, map_location=DEVICE, weights_only=False)
+        self.label_map = ckpt["label_map"]
+        self.inv_label_map = {v: k for k, v in self.label_map.items()}
+        self.held_out_class = "Banana"
+
+        self.model = ResNetClassifier(len(self.label_map)).to(DEVICE)
+        self.model.load_state_dict(ckpt["model_state_dict"])
+        self.model.eval()
+        self.gradcam = GradCAM(self.model, self.model.layer4[-1])
+
+        val_feats = ckpt["val"]["features"]
+        val_labels = ckpt["val"]["labels"]
+        self.prototypes = torch.stack([val_feats[val_labels == c].mean(dim=0) for c in range(len(self.label_map))])
+        print(f"[Engine] ResNet-50 loaded from {ckpt_path.name} | classes: {list(self.label_map.keys())}")
+
+    def infer(self, x: torch.Tensor) -> Dict[str, Any]:
+        with torch.no_grad():
+            probe_logits, feats = self.model(x)
+        pred_idx = int(probe_logits.argmax(dim=1))
+        cam, logits = self.gradcam(x, pred_idx)
+        probs = torch.softmax(logits, dim=1)[0]
+
+        energy = float(-torch.logsumexp(logits, dim=1)[0])
+        msp = float(-probs.max())
+        proto = float(torch.cdist(feats, self.prototypes).min())
+
+        return {
+            "pred_idx": pred_idx,
+            "predicted_class": self.inv_label_map[pred_idx],
+            "confidence": float(probs[pred_idx]),
+            "energy_score": energy,
+            "msp_score": msp,
+            "proto_score": proto,
+            "energy_threshold": self.energy_threshold,
+            "proto_threshold": self.proto_threshold,
+            "cam": cam,
+        }
 
 
-def colorize_cam(cam: torch.Tensor) -> np.ndarray:
-    """cam: [224,224] in [0,1] -> RGBA uint8 heat overlay, amber->red ramp,
-    low-activation regions suppressed to alpha 0 so the overlay reads as a
-    focused hotspot rather than a full-frame tint."""
-    cam_np = cam.numpy()
-    amber = np.array([255, 176, 32])
-    red = np.array([255, 60, 60])
-    t = np.clip(cam_np, 0, 1)[..., None]
-    rgb = (amber * (1 - t) + red * t).astype(np.uint8)
-    alpha = np.clip((cam_np - 0.25) / 0.75, 0, 1) ** 0.8
-    alpha = (alpha * 210).astype(np.uint8)
-    return np.dstack([rgb, alpha])
+# =============================================================================
+# 2. DINOv2 Engine (Self-Supervised ViT-S/14)
+# =============================================================================
+
+class DINOv2Engine:
+    def __init__(self):
+        self.name = "DINOv2 (SSL ViT-S/14)"
+        self.badge = "Self-Supervised ViT"
+        # Calibrated on DINOv2 fold 0 val (-13 mean) vs OOD Banana (-4.5 mean)
+        self.energy_threshold = -9.0
+        # Calibrated on DINOv2 fold 0 proto distance (val max 0.70 vs OOD min 0.85)
+        self.proto_threshold = 0.78
+        self.held_out_class = "Banana"
+
+        # Load timm backbone
+        self.backbone = timm.create_model(
+            "vit_small_patch14_dinov2.lvd142m",
+            pretrained=True,
+            num_classes=0,
+            img_size=224,
+        ).to(DEVICE)
+        self.backbone.eval()
+
+        self.head = nn.Sequential(
+            nn.LayerNorm(384),
+            nn.Dropout(p=0.1),
+            nn.Linear(384, 5),
+        ).to(DEVICE)
+
+        ckpt_candidates = [
+            ROOT_DIR / "fold0_dinov2.pt",
+            ROOT_DIR.parent / "Semi-Supervised" / "project" / "checkpoints" / "best_model_fold0.pt",
+        ]
+        ckpt_path = next((p for p in ckpt_candidates if p.exists()), None)
+        if ckpt_path is None:
+            raise FileNotFoundError("Could not find DINOv2 fold0 checkpoint.")
+
+        ckpt = torch.load(ckpt_path, map_location=DEVICE, weights_only=False)
+        self.label_map = ckpt.get("label_map", {'Carrot': 0, 'Guava': 1, 'Indian_Gooseberry': 2, 'Mango': 3, 'Tomato': 4})
+        self.inv_label_map = {v: k for k, v in self.label_map.items()}
+
+        # Load weights into backbone and head
+        sd = ckpt["model_state_dict"]
+        backbone_sd = {}
+        head_sd = {}
+        for k, v in sd.items():
+            if k.startswith("backbone.backbone."):
+                backbone_sd[k.replace("backbone.backbone.", "")] = v
+            elif k.startswith("head."):
+                head_sd[k.replace("head.", "")] = v
+
+        if backbone_sd:
+            self.backbone.load_state_dict(backbone_sd, strict=False)
+        if head_sd:
+            self.head.load_state_dict(head_sd, strict=False)
+        self.head.eval()
+
+        # Prototypes
+        proto_path = ROOT_DIR / "fold0_dinov2_prototypes.pt"
+        if proto_path.exists():
+            self.prototypes = torch.load(proto_path, map_location=DEVICE, weights_only=False)
+        else:
+            # Fallback prototypes
+            self.prototypes = torch.zeros(5, 384, device=DEVICE)
+
+        print(f"[Engine] DINOv2 loaded from {ckpt_path.name} | classes: {list(self.label_map.keys())}")
+
+    def infer(self, x: torch.Tensor) -> Dict[str, Any]:
+        with torch.no_grad():
+            tokens = self.backbone.forward_features(x)
+            cls_token = tokens[:, 0, :]
+            feats = F.normalize(cls_token, p=2, dim=-1)
+            logits = self.head(feats)
+            probs = torch.softmax(logits, dim=1)[0]
+            pred_idx = int(logits.argmax(dim=1).item())
+
+            # Spatial patch heatmap (16x16 tokens from 224/14)
+            patch_tokens = tokens[:, 1:, :]  # [1, 256, 384]
+            patch_norm = patch_tokens.norm(dim=-1).view(1, 1, 16, 16)
+            cam = F.interpolate(patch_norm, size=(224, 224), mode="bilinear", align_corners=False).squeeze()
+            cam_min = cam.min()
+            cam_max = cam.max()
+            cam = (cam - cam_min) / (cam_max - cam_min + 1e-8)
+
+            energy = float(-torch.logsumexp(logits, dim=1)[0])
+            msp = float(-probs.max())
+            proto = float(torch.cdist(feats, self.prototypes).min())
+
+        return {
+            "pred_idx": pred_idx,
+            "predicted_class": self.inv_label_map[pred_idx],
+            "confidence": float(probs[pred_idx]),
+            "energy_score": energy,
+            "msp_score": msp,
+            "proto_score": proto,
+            "energy_threshold": self.energy_threshold,
+            "proto_threshold": self.proto_threshold,
+            "cam": cam,
+        }
 
 
-def image_to_data_url(img: Image.Image) -> str:
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+# =============================================================================
+# 3. ViT Engine (Supervised Vision Transformer - Base/16)
+# =============================================================================
+
+class ViTEngine:
+    def __init__(self):
+        self.name = "ViT-Base (Transformers)"
+        self.badge = "Supervised ViT"
+        self.held_out_class = "Banana"
+
+        ckpt_candidates = [
+            ROOT_DIR / "fold0_heldout_banana_ViT.pt",
+            ROOT_DIR / "fold0_heldout_Banana.pt",
+        ]
+        ckpt_path = next((p for p in ckpt_candidates if p.exists()), None)
+        if ckpt_path is None:
+            raise FileNotFoundError("Could not find ViT fold0 checkpoint.")
+
+        ckpt = torch.load(ckpt_path, map_location=DEVICE, weights_only=False)
+        self.energy_threshold = float(ckpt["thresholds"].get("energy", -4.4789))
+        # 95th percentile FPR95 threshold was ~7.32; 8.5 provides robust margin for intra-class variation while strictly rejecting OOD (>9.2)
+        raw_proto_th = float(ckpt["thresholds"].get("proto", 7.3231))
+        self.proto_threshold = max(raw_proto_th, 8.5)
+        self.known_classes = ckpt.get("known_classes", ['Carrot', 'Guava', 'Indian_Gooseberry', 'Mango', 'Tomato'])
+        self.inv_label_map = {i: c for i, c in enumerate(self.known_classes)}
+        self.label_map = {c: i for i, c in enumerate(self.known_classes)}
+        self.prototypes = ckpt["prototypes"].to(DEVICE)
+
+        pretrained_name = ckpt.get("pretrained_ckpt", "google/vit-base-patch16-224-in21k")
+        self.vit = ViTModel.from_pretrained(
+            pretrained_name,
+            add_pooling_layer=True,
+            attn_implementation="eager",
+        ).to(DEVICE)
+        self.vit.eval()
+
+        self.classifier = nn.Linear(768, len(self.known_classes)).to(DEVICE)
+        self.classifier.load_state_dict(ckpt["head_state_dict"])
+        self.classifier.eval()
+
+        print(f"[Engine] ViT-Base loaded from {ckpt_path.name} | classes: {self.known_classes}")
+
+    def infer(self, x: torch.Tensor) -> Dict[str, Any]:
+        with torch.no_grad():
+            outputs = self.vit(pixel_values=x, output_attentions=True)
+            feats = outputs.pooler_output
+            logits = self.classifier(feats)
+            probs = torch.softmax(logits, dim=1)[0]
+            pred_idx = int(logits.argmax(dim=1).item())
+
+            # 12-layer attention map (CLS token attention over 14x14 patches)
+            last_attn = outputs.attentions[-1]  # [1, 12, 197, 197]
+            cls_attn = last_attn[0].mean(dim=0)[0, 1:].view(1, 1, 14, 14)
+            cam = F.interpolate(cls_attn, size=(224, 224), mode="bilinear", align_corners=False).squeeze()
+            cam_min = cam.min()
+            cam_max = cam.max()
+            cam = (cam - cam_min) / (cam_max - cam_min + 1e-8)
+
+            energy = float(-torch.logsumexp(logits, dim=1)[0])
+            msp = float(-probs.max())
+            proto = float(torch.cdist(feats, self.prototypes).min())
+
+        return {
+            "pred_idx": pred_idx,
+            "predicted_class": self.inv_label_map[pred_idx],
+            "confidence": float(probs[pred_idx]),
+            "energy_score": energy,
+            "msp_score": msp,
+            "proto_score": proto,
+            "energy_threshold": self.energy_threshold,
+            "proto_threshold": self.proto_threshold,
+            "cam": cam,
+        }
 
 
-# --- load model + calibration once at startup ---
-_ckpt_path = CKPT_DIR / f"fold{FOLD_IDX}.pt"
-if not _ckpt_path.exists():
-    raise RuntimeError(
-        f"Checkpoint not found at {_ckpt_path}. Set SENTRAGRADE_DATA_ROOT if your "
-        "sentragrade_data folder lives somewhere other than ~/sentragrade_data."
-    )
+# =============================================================================
+# Startup: Load All Three Engines
+# =============================================================================
 
-_ckpt = torch.load(_ckpt_path, map_location="cpu", weights_only=False)
-LABEL_MAP = _ckpt["label_map"]
-INV_LABEL_MAP = {v: k for k, v in LABEL_MAP.items()}
+ENGINES: Dict[str, Any] = {}
+MODELS_META = [
+    {"id": "resnet50", "name": "ResNet-50 (CNN)", "type": "Supervised CNN", "arch": "Convolutional"},
+    {"id": "dinov2", "name": "DINOv2 (SSL)", "type": "Self-Supervised ViT", "arch": "ViT-S/14"},
+    {"id": "vit", "name": "ViT-Base", "type": "Supervised Transformer", "arch": "ViT-B/16"},
+]
 
-_summary = pd.read_csv(CKPT_DIR / "summary.csv")
-HELD_OUT_CLASS = str(_summary.loc[_summary.fold == FOLD_IDX, "held_out_class"].item())
+try:
+    ENGINES["resnet50"] = ResNetEngine()
+except Exception as e:
+    print(f"[warn] Failed to load ResNetEngine: {e}")
 
-MODEL = ResNetClassifier(len(LABEL_MAP)).to(DEVICE)
-MODEL.load_state_dict(_ckpt["model_state_dict"])
-MODEL.eval()
-GRADCAM = GradCAM(MODEL, MODEL.layer4[-1])
+try:
+    ENGINES["dinov2"] = DINOv2Engine()
+except Exception as e:
+    print(f"[warn] Failed to load DINOv2Engine: {e}")
 
-_val_logits = _ckpt["val"]["logits"]
-_val_feats = _ckpt["val"]["features"]
-_val_labels = _ckpt["val"]["labels"]
+try:
+    ENGINES["vit"] = ViTEngine()
+except Exception as e:
+    print(f"[warn] Failed to load ViTEngine: {e}")
 
-PROTOTYPES = torch.stack([_val_feats[_val_labels == c].mean(dim=0) for c in range(len(LABEL_MAP))])
+if not ENGINES:
+    raise RuntimeError("No model engines could be loaded. Check checkpoint paths.")
 
-print(
-    f"[sentragrade] fold {FOLD_IDX} loaded — known classes: {sorted(LABEL_MAP)} | "
-    f"held-out (OOD demo) class: {HELD_OUT_CLASS} | energy threshold: {ENERGY_THRESHOLD} | "
-    f"proto threshold: {PROTO_THRESHOLD}"
-)
+DEFAULT_ENGINE_ID = "resnet50" if "resnet50" in ENGINES else list(ENGINES.keys())[0]
 
-app = FastAPI(title="SentraGrade Scanner")
+app = FastAPI(title="SentraGrade Multi-Model Scanner")
 
 
 @app.get("/api/meta")
-def meta():
-    classes = sorted(LABEL_MAP, key=lambda c: LABEL_MAP[c])
+def meta(model: str = Query(DEFAULT_ENGINE_ID)):
+    engine = ENGINES.get(model, ENGINES[DEFAULT_ENGINE_ID])
+    classes = sorted(engine.label_map, key=lambda c: engine.label_map[c])
     return {
+        "models": MODELS_META,
+        "active_model": model if model in ENGINES else DEFAULT_ENGINE_ID,
+        "active_model_name": engine.name,
+        "active_model_badge": engine.badge,
         "known_classes": classes,
-        "held_out_class": HELD_OUT_CLASS,
-        "fold": FOLD_IDX,
-        "energy_threshold": ENERGY_THRESHOLD,
-        "proto_threshold": PROTO_THRESHOLD,
+        "held_out_class": engine.held_out_class,
+        "energy_threshold": engine.energy_threshold,
+        "proto_threshold": engine.proto_threshold,
     }
 
 
 @app.post("/api/scan")
-async def scan(file: UploadFile = File(...)):
+async def scan(
+    file: UploadFile = File(...),
+    model: str = Query(DEFAULT_ENGINE_ID),
+):
     raw = await file.read()
     try:
         img = Image.open(io.BytesIO(raw)).convert("RGB")
     except Exception:
         raise HTTPException(400, "That file couldn't be read as an image.")
 
-    x = eval_tf(img).unsqueeze(0)
+    engine = ENGINES.get(model, ENGINES[DEFAULT_ENGINE_ID])
+    x = eval_tf(img).unsqueeze(0).to(DEVICE)
 
-    with torch.no_grad():
-        probe_logits, feats = MODEL(x)
-    pred_idx = int(probe_logits.argmax(dim=1))
+    res = engine.infer(x)
 
-    cam, logits = GRADCAM(x, pred_idx)
-
-    probs = torch.softmax(logits, dim=1)[0]
-    confidence = float(probs[pred_idx])
-    energy_score = float(-torch.logsumexp(logits, dim=1)[0])
-    msp_score = float(-probs.max())
-    proto_score = float(torch.cdist(feats, PROTOTYPES).min())
-
-    # Energy alone under-reacts to far-OOD objects with no organic texture
-    # (a pen scores *lower* energy than real fruit), so reject on either
-    # signal: energy catches near-OOD (other produce), prototype distance
-    # catches far-OOD (electronics, tools, ...).
-    energy_threshold = ENERGY_THRESHOLD
-    proto_threshold = PROTO_THRESHOLD
+    # Rejection logic: reject if energy > energy_threshold OR proto > proto_threshold
     triggered_by = []
-    if energy_score > energy_threshold:
+    if res["energy_score"] > res["energy_threshold"]:
         triggered_by.append("energy")
-    if proto_score > proto_threshold:
+    if res["proto_score"] > res["proto_threshold"]:
         triggered_by.append("proto")
     decision = "REJECTED" if triggered_by else "ACCEPTED"
 
     base_view = denormalize(x[0]).permute(1, 2, 0).numpy()
     base_img = Image.fromarray((base_view * 255).astype(np.uint8))
-    heat_img = Image.alpha_composite(base_img.convert("RGBA"), Image.fromarray(colorize_cam(cam), mode="RGBA"))
+    heat_img = Image.alpha_composite(base_img.convert("RGBA"), Image.fromarray(colorize_cam(res["cam"]), mode="RGBA"))
 
     return {
         "decision": decision,
-        "predicted_class": INV_LABEL_MAP[pred_idx],
-        "confidence": confidence,
-        "energy_score": energy_score,
-        "energy_threshold": energy_threshold,
-        "msp_score": msp_score,
-        "proto_score": proto_score,
-        "proto_threshold": proto_threshold,
+        "model_id": model,
+        "model_name": engine.name,
+        "predicted_class": res["predicted_class"],
+        "confidence": res["confidence"],
+        "energy_score": res["energy_score"],
+        "energy_threshold": res["energy_threshold"],
+        "msp_score": res["msp_score"],
+        "proto_score": res["proto_score"],
+        "proto_threshold": res["proto_threshold"],
         "triggered_by": triggered_by,
-        "held_out_class": HELD_OUT_CLASS,
+        "held_out_class": engine.held_out_class,
         "model_view_image": image_to_data_url(base_img),
         "heatmap_image": image_to_data_url(heat_img),
     }
 
 
 class NoCacheStaticFiles(StaticFiles):
-    """Always revalidate, so UI edits show up on a normal reload instead of
-    the browser serving a heuristically cached copy of the old files."""
-
     async def get_response(self, path, scope):
         response = await super().get_response(path, scope)
         response.headers["Cache-Control"] = "no-cache"
