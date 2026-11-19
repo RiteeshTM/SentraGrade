@@ -1,0 +1,81 @@
+data: /private/tmp/claude-501/-Users-riteeshtm-Public-Coding-College-NN-DL-Case-study-SentraGrade/f67f3496-7850-4cad-bc1c-9c820f6dbd3b/scratchpad/data | spoilage: /Users/riteeshtm/Public/Coding/College/NN DL Case study/SentraGrade/kaggle/spoilage_labels.csv | ResNet folds: [0, 1, 2, 3, 4, 5] | probes: [('dinov2_s14', 0), ('dinov2_s14', 1), ('dinov2_s14', 2), ('dinov2_s14', 3), ('dinov2_s14', 4), ('dinov2_s14', 5), ('vit_b16', 0), ('vit_b16', 1), ('vit_b16', 2), ('vit_b16', 3), ('vit_b16', 4), ('vit_b16', 5)] | device: mps
+               class  days                                                                                                                                                                                                                                          train_days             buffer                                                                                   val_days                                                                                  test_days  train_n  val_n  test_n  dropped_n train_fresh/spoiled val_fresh/spoiled test_fresh/spoiled
+0             Banana     7                                                                                                                                                                                                                          20250911,20250915,20250916                                                                                             20250912,20250917                                                                          20250913,20250918      119    102     102          0               51/68             51/51              51/51
+1             Carrot     9                                                                                                                                                                                                        20250725,20250728,20250729,20250730,20250731           20250801                                                                                   20250802                                                                          20250726,20250804      255     51     102         50              51/204              0/51              51/51
+2              Guava    10                                                                                                                                                                                                        20250625,20250626,20250630,20250701,20250702           20250703                                                                          20250627,20250704                                                                          20250628,20250705      255    102     102         51             102/153             51/51              51/51
+3  Indian_Gooseberry    30                                                                                            20250723,20250724,20250725,20250726,20250728,20250729,20250730,20250731,20250801,20250802,20250813,20250814,20250815,20250816,20250818,20250829,20250830  20250804,20250901                                               20250805,20250806,20250807,20250902,20250903                                      20250808,20250809,20250811,20250812,20250904,20250908      833    238     238        102             527/306           136/102             170/68
+4              Mango     8                                                                                                                                                                                                                 20250920,20250922,20250923,20250929                                                                                             20250924,20250930                                                                          20250926,20251003      187    103     102          0              153/34             52/51              51/51
+5             Tomato    48  20250723,20250724,20250725,20250726,20250728,20250729,20250730,20250731,20250801,20250802,20250804,20250805,20250806,20250807,20250808,20250809,20250811,20250812,20250813,20250814,20250815,20250816,20250818,20250829,20250830,20250926,20250929           20250901  20250902,20250903,20250904,20250908,20250909,20250910,20250911,20250912,20250913,20250930  20250915,20250916,20250917,20250918,20250919,20250920,20250922,20250923,20250924,20251003     1275    459     459         51             1207/68            408/51             408/51
+    protocol  fold           held_out  train   val  test   ood
+0  corrected     0             Banana   2805   953  1003   323
+1  corrected     1             Carrot   2669  1004  1003   458
+2  corrected     2              Guava   2669   953  1003   510
+3  corrected     3  Indian_Gooseberry   2091   817   867  1411
+4  corrected     4              Mango   2737   952  1003   392
+5  corrected     5             Tomato   1649   596   646  2244
+dinov2_s14: (5338, 384) in 30s
+vit_b16: (5338, 768) in 65s
+resnet50   fold 0 (Banana           ) MSP 0.975  Energy 0.998  MaxLogit 0.998  Proto 0.948  Mahalanobis 0.981  KNN 0.989  ReAct 0.998  ViM 0.989
+resnet50   fold 1 (Carrot           ) MSP 0.928  Energy 0.956  MaxLogit 0.955  Proto 0.953  Mahalanobis 0.960  KNN 0.684  ReAct 0.957  ViM 0.972
+resnet50   fold 2 (Guava            ) MSP 0.908  Energy 0.930  MaxLogit 0.932  Proto 0.948  Mahalanobis 0.933  KNN 0.909  ReAct 0.954  ViM 0.949
+resnet50   fold 3 (Indian_Gooseberry) MSP 0.960  Energy 0.967  MaxLogit 0.968  Proto 0.947  Mahalanobis 0.922  KNN 0.861  ReAct 0.960  ViM 0.950
+resnet50   fold 4 (Mango            ) MSP 0.965  Energy 0.967  MaxLogit 0.967  Proto 0.926  Mahalanobis 0.888  KNN 0.947  ReAct 0.943  ViM 0.923
+resnet50   fold 5 (Tomato           ) MSP 0.974  Energy 0.981  MaxLogit 0.981  Proto 0.786  Mahalanobis 0.515  KNN 0.986  ReAct 0.915  ViM 0.875
+dinov2_s14 fold 0 (Banana           ) MSP 0.988  Energy 0.794  MaxLogit 0.910  Proto 0.999  Mahalanobis 1.000  KNN 1.000  ReAct 0.748  ViM 0.997
+dinov2_s14 fold 1 (Carrot           ) MSP 0.994  Energy 0.985  MaxLogit 0.992  Proto 1.000  Mahalanobis 1.000  KNN 1.000  ReAct 0.982  ViM 1.000
+dinov2_s14 fold 2 (Guava            ) MSP 0.999  Energy 0.933  MaxLogit 0.970  Proto 0.973  Mahalanobis 0.950  KNN 0.969  ReAct 0.919  ViM 0.950
+dinov2_s14 fold 3 (Indian_Gooseberry) MSP 0.985  Energy 0.924  MaxLogit 0.947  Proto 0.981  Mahalanobis 0.958  KNN 0.980  ReAct 0.926  ViM 0.947
+dinov2_s14 fold 4 (Mango            ) MSP 0.993  Energy 0.913  MaxLogit 0.952  Proto 0.967  Mahalanobis 0.926  KNN 0.963  ReAct 0.905  ViM 0.917
+dinov2_s14 fold 5 (Tomato           ) MSP 0.993  Energy 0.990  MaxLogit 0.993  Proto 1.000  Mahalanobis 0.996  KNN 1.000  ReAct 0.990  ViM 0.998
+vit_b16    fold 0 (Banana           ) MSP 0.999  Energy 0.999  MaxLogit 1.000  Proto 0.946  Mahalanobis 0.980  KNN 0.999  ReAct 0.998  ViM 0.987
+vit_b16    fold 1 (Carrot           ) MSP 1.000  Energy 1.000  MaxLogit 1.000  Proto 0.984  Mahalanobis 0.987  KNN 1.000  ReAct 0.998  ViM 0.989
+vit_b16    fold 2 (Guava            ) MSP 0.988  Energy 0.966  MaxLogit 0.985  Proto 0.905  Mahalanobis 0.841  KNN 0.879  ReAct 0.958  ViM 0.847
+vit_b16    fold 3 (Indian_Gooseberry) MSP 0.921  Energy 0.858  MaxLogit 0.912  Proto 0.839  Mahalanobis 0.916  KNN 0.900  ReAct 0.862  ViM 0.921
+vit_b16    fold 4 (Mango            ) MSP 0.996  Energy 0.995  MaxLogit 0.997  Proto 0.866  Mahalanobis 0.863  KNN 0.944  ReAct 0.993  ViM 0.866
+vit_b16    fold 5 (Tomato           ) MSP 1.000  Energy 0.997  MaxLogit 0.999  Proto 0.925  Mahalanobis 0.926  KNN 0.999  ReAct 0.992  ViM 0.930
+      backbone       method   AUROC  AUROC_sd    FPR95  FRR_fresh  FRR_spoiled  AUROC_vs_spoiled
+2   dinov2_s14          MSP  0.9919    0.0048   3.9015     1.4248      19.8938            0.9757
+0   dinov2_s14       Energy  0.9232    0.0709  28.9891     4.6520      14.6732            0.8950
+4   dinov2_s14     MaxLogit  0.9606    0.0313  19.6158     4.1249      16.3480            0.9336
+5   dinov2_s14        Proto  0.9869    0.0149   4.3637     0.0228      46.1070            0.9525
+3   dinov2_s14  Mahalanobis  0.9716    0.0314   5.4064     0.1368      41.2051            0.8982
+1   dinov2_s14          KNN  0.9852    0.0170   3.9519     0.2280      45.0572            0.9466
+6   dinov2_s14        ReAct  0.9114    0.0875  30.8417     4.6288      17.8962            0.8734
+7   dinov2_s14          ViM  0.9682    0.0349   6.4997     0.1140      40.5188            0.8860
+10    resnet50          MSP  0.9517    0.0273  17.6347     2.7317      24.3096            0.8847
+8     resnet50       Energy  0.9666    0.0230  10.4758     1.7736      23.9788            0.9043
+12    resnet50     MaxLogit  0.9666    0.0224  10.5781     1.7736      24.1585            0.9045
+13    resnet50        Proto  0.9181    0.0652  13.8059     1.3353      24.1993            0.7844
+11    resnet50  Mahalanobis  0.8666    0.1752  23.9326     1.1682      24.6201            0.7578
+9     resnet50          KNN  0.8960    0.1145  33.6841     5.1832      31.5523            0.8186
+14    resnet50        ReAct  0.9544    0.0270   9.8566     2.0398      22.3489            0.8770
+15    resnet50          ViM  0.9429    0.0402   9.6013     0.4227      27.8472            0.8248
+18     vit_b16          MSP  0.9840    0.0311   5.9603     0.5941      21.1111            0.9519
+16     vit_b16       Energy  0.9693    0.0559   9.7456     0.2457      28.2067            0.9218
+20     vit_b16     MaxLogit  0.9821    0.0349   6.7599     0.2141      27.6838            0.9479
+21     vit_b16        Proto  0.9107    0.0530  18.9567     0.3420      32.5899            0.7248
+19     vit_b16  Mahalanobis  0.9189    0.0594  15.0234     0.0912      45.4289            0.7394
+17     vit_b16          KNN  0.9535    0.0545  10.2030     0.2369      33.1209            0.8514
+22     vit_b16        ReAct  0.9668    0.0533  10.0750     0.1957      27.8962            0.9084
+23     vit_b16          ViM  0.9234    0.0590  14.7409     0.0456      44.5057            0.7544
+method                          MSP  Energy  MaxLogit  Proto  Mahalanobis    KNN  ReAct    ViM
+backbone   held_out                                                                           
+dinov2_s14 Banana             0.988   0.794     0.910  0.999        1.000  1.000  0.748  0.997
+           Carrot             0.994   0.985     0.992  1.000        1.000  1.000  0.982  1.000
+           Guava              0.999   0.933     0.970  0.973        0.950  0.969  0.919  0.950
+           Indian_Gooseberry  0.985   0.924     0.947  0.981        0.958  0.980  0.926  0.947
+           Mango              0.993   0.913     0.952  0.967        0.926  0.963  0.905  0.917
+           Tomato             0.993   0.990     0.993  1.000        0.996  1.000  0.990  0.998
+resnet50   Banana             0.975   0.998     0.998  0.948        0.981  0.989  0.998  0.989
+           Carrot             0.928   0.956     0.955  0.953        0.960  0.684  0.957  0.972
+           Guava              0.908   0.930     0.932  0.948        0.933  0.909  0.954  0.949
+           Indian_Gooseberry  0.960   0.967     0.968  0.947        0.922  0.861  0.960  0.950
+           Mango              0.965   0.967     0.967  0.926        0.888  0.947  0.943  0.923
+           Tomato             0.974   0.981     0.981  0.786        0.515  0.986  0.915  0.875
+vit_b16    Banana             0.999   0.999     1.000  0.946        0.980  0.999  0.998  0.987
+           Carrot             1.000   1.000     1.000  0.984        0.987  1.000  0.998  0.989
+           Guava              0.988   0.966     0.985  0.905        0.841  0.879  0.958  0.847
+           Indian_Gooseberry  0.921   0.858     0.912  0.839        0.916  0.900  0.862  0.921
+           Mango              0.996   0.995     0.997  0.866        0.863  0.944  0.993  0.866
+           Tomato             1.000   0.997     0.999  0.925        0.926  0.999  0.992  0.930
+Download: outputs/sentragrade_baselines.zip
