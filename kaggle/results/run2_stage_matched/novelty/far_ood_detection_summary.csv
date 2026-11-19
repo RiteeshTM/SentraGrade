@@ -1,0 +1,4 @@
+score,AUROC_vs_far_all,FPR95_vs_far_all,AUROC_vs_coil100,FPR95_vs_coil100,AUROC_vs_dtd,FPR95_vs_dtd
+cls,0.9999593924052862,0.0,0.9999329353985972,0.0,0.9999858494119751,0.0
+cond,1.0,0.0,1.0,0.0,1.0,0.0
+uncond,1.0,0.0,1.0,0.0,1.0,0.0

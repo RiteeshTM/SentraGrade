@@ -1,0 +1,13 @@
+target,map,mean,std,count
+dino_cls,centre,1.2616,0.4524,360
+dino_cls,energycam,1.099,0.2222,360
+dino_cls,gradcam,1.2287,0.3749,360
+dino_cls,novelty_cond,1.19,0.3368,360
+dino_cls,novelty_uncond,1.2395,0.3759,360
+dino_cls,random,1.0407,0.1469,360
+resnet_energy,centre,0.7997,14.7924,360
+resnet_energy,energycam,0.7773,3.5477,360
+resnet_energy,gradcam,0.7739,13.6384,360
+resnet_energy,novelty_cond,0.4899,21.318,360
+resnet_energy,novelty_uncond,0.5278,21.0286,360
+resnet_energy,random,0.5789,25.4168,360

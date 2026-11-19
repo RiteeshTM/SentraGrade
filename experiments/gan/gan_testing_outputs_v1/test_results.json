@@ -1,0 +1,164 @@
+{
+  "fid": {
+    "floor_real_vs_real": 18.260149443436802,
+    "model": 266.1882222306421,
+    "untrained": 413.88975804262765,
+    "best_during_training": 266.4868552016753,
+    "per_class": [
+      {
+        "class": "Banana",
+        "n_train": 221,
+        "N": 102,
+        "FID_real_floor": 180.1,
+        "FID_generated": 404.6,
+        "gap": 224.5
+      },
+      {
+        "class": "Carrot",
+        "n_train": 356,
+        "N": 102,
+        "FID_real_floor": 30.8,
+        "FID_generated": 328.6,
+        "gap": 297.7
+      },
+      {
+        "class": "Guava",
+        "n_train": 408,
+        "N": 102,
+        "FID_real_floor": 53.5,
+        "FID_generated": 319.5,
+        "gap": 266.0
+      },
+      {
+        "class": "Indian_Gooseberry",
+        "n_train": 1122,
+        "N": 289,
+        "FID_real_floor": 18.2,
+        "FID_generated": 294.4,
+        "gap": 276.2
+      },
+      {
+        "class": "Mango",
+        "n_train": 307,
+        "N": 85,
+        "FID_real_floor": 30.4,
+        "FID_generated": 284.6,
+        "gap": 254.3
+      },
+      {
+        "class": "Tomato",
+        "n_train": 1785,
+        "N": 459,
+        "FID_real_floor": 8.1,
+        "FID_generated": 302.7,
+        "gap": 294.6
+      }
+    ],
+    "history": [
+      [
+        20,
+        311.07955368691864
+      ],
+      [
+        40,
+        278.66379367890164
+      ],
+      [
+        60,
+        266.4868552016753
+      ]
+    ]
+  },
+  "back_to_back": [
+    {
+      "variant": "TRTR",
+      "seed": 0,
+      "acc": 1.0,
+      "macro_f1": 1.0,
+      "recall_Banana": 1.0,
+      "recall_Carrot": 1.0,
+      "recall_Guava": 1.0,
+      "recall_Indian_Gooseberry": 1.0,
+      "recall_Mango": 1.0,
+      "recall_Tomato": 1.0
+    },
+    {
+      "variant": "TRTS",
+      "seed": 0,
+      "acc": 0.35361552028218696,
+      "macro_f1": 0.2994431239462804,
+      "recall_Banana": 0.2857142857142857,
+      "recall_Carrot": 0.042328042328042326,
+      "recall_Guava": 0.7301587301587301,
+      "recall_Indian_Gooseberry": 0.1111111111111111,
+      "recall_Mango": 0.9206349206349206,
+      "recall_Tomato": 0.031746031746031744
+    },
+    {
+      "variant": "TSTR",
+      "seed": 0,
+      "acc": 0.28884986830553117,
+      "macro_f1": 0.24839571146827136,
+      "recall_Banana": 0.0,
+      "recall_Carrot": 0.8431372549019608,
+      "recall_Guava": 0.20588235294117646,
+      "recall_Indian_Gooseberry": 0.6228373702422145,
+      "recall_Mango": 0.21176470588235294,
+      "recall_Tomato": 0.05228758169934641
+    },
+    {
+      "variant": "R+S",
+      "seed": 0,
+      "acc": 1.0,
+      "macro_f1": 1.0,
+      "recall_Banana": 1.0,
+      "recall_Carrot": 1.0,
+      "recall_Guava": 1.0,
+      "recall_Indian_Gooseberry": 1.0,
+      "recall_Mango": 1.0,
+      "recall_Tomato": 1.0
+    }
+  ],
+  "report": [
+    {
+      "id": "T1a",
+      "test": "FID: model vs untrained G",
+      "measured": "266.2 < 0.5 \u00d7 413.9",
+      "result": "FAIL"
+    },
+    {
+      "id": "T1b",
+      "test": "FID: class uniformity",
+      "measured": "max 404.6 \u2264 2 \u00d7 min 284.6",
+      "result": "PASS"
+    },
+    {
+      "id": "T2a",
+      "test": "TSTR utility ratio",
+      "measured": "0.289 / 1.000 = 0.29 \u2265 0.70",
+      "result": "FAIL"
+    },
+    {
+      "id": "T2b",
+      "test": "TRTS class correctness",
+      "measured": "0.354 \u2265 0.70",
+      "result": "FAIL"
+    },
+    {
+      "id": "T2c",
+      "test": "Augmentation non-regression",
+      "measured": "F1 1.000 \u2265 1.000 \u2212 0.01",
+      "result": "PASS"
+    }
+  ],
+  "config": {
+    "framework": "tensorflow 2.19.1",
+    "GAN_EPOCHS": 60,
+    "CLS_EPOCHS": 5,
+    "CLS_SEEDS": [
+      0
+    ],
+    "IMG": 64,
+    "QUICK": false
+  }
+}
