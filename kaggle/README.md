@@ -14,7 +14,7 @@ Notebooks that run on Kaggle (GPU T4, Internet on) with the `sentragrade-data` d
 
 ## Results
 
-- `results/run2_stage_matched/` — the current results (stage-matched corrected split). Every number in the paper traces to these CSVs; `all_backbones_stage_matched_summary.csv` combines the three backbones; `baselines/` holds the extra post-hoc baselines.
+- `results/run2_stage_matched/` — the current results (stage-matched corrected split). Every number in the paper traces to these CSVs; `all_backbones_stage_matched_summary.csv` combines the three backbones; `baselines/` holds the extra post-hoc baselines; `seeds/` holds the seed 43/44 (ResNet50) and seed 42-44 (ViT/DINOv2) runs, and `seeds/summary_across_seeds_all.csv` combines all three seeds for every backbone.
 - `results/run1_time_blocked/` — the first corrected run with a plain time-blocked split. Kept because it shows the spoilage confound (training mostly fresh, testing mostly spoiled). Its novelty folder uses an earlier deletion test with a flat-colour fill that was later found to be invalid; do not use those faithfulness numbers.
 
 Large archives (`*.zip`), checkpoints (`*.pt`) and map arrays (`*.npz`) are not committed.
