@@ -88,6 +88,92 @@ body {
   margin-top: 6px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.model-switch {
+  display: flex;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 4px;
+  gap: 3px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.model-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  outline: none;
+}
+
+.model-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.model-name {
+  font-weight: 600;
+}
+
+.model-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  opacity: 0.5;
+  transition: all 0.18s ease;
+}
+
+.model-badge {
+  font-size: 8.5px;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+}
+
+.model-btn.active {
+  background: rgba(255, 176, 32, 0.12);
+  border-color: rgba(255, 176, 32, 0.4);
+  color: var(--amber);
+  box-shadow: 0 0 10px rgba(255, 176, 32, 0.15);
+}
+
+.model-btn.active .model-dot {
+  background: var(--amber);
+  opacity: 1;
+  box-shadow: 0 0 6px var(--amber);
+}
+
+.model-btn.active .model-badge {
+  background: rgba(255, 176, 32, 0.2);
+  opacity: 1;
+  color: #fff;
+}
+
+.stat-tile-model {
+  border-left: 2px solid var(--amber);
+}
+
 .status-pill {
   display: flex;
   align-items: center;

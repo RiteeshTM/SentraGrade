@@ -219,6 +219,7 @@ __marimo__/
 
 # macOS
 .DS_Store
+**/.DS_Store
 
 # Image datasets / raw data archives
 TR-6/
@@ -226,15 +227,16 @@ sentragrade_data.zip
 
 # Kaggle run outputs: keep CSVs/figures, not the large archives or checkpoints
 kaggle/results/**/*.zip
-*.pt
 outputs/
 *.npz
 *.keras
 
+# Model checkpoints (large binary weights)
+*.pt
+*.pth
+*.bin
+*.onnx
+
 # Private until publication: paper drafts, compiled reports and review PDFs
 paper/
 reports/
-
-# Personal coursework that is not part of this project
-*lab_eval*.ipynb
-cse23668labeval.ipynb

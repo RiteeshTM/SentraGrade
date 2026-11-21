@@ -12,7 +12,9 @@
   const stamp = document.getElementById("stamp");
   const errorMsg = document.getElementById("errorMsg");
   const footerHeldOut = document.getElementById("footerHeldOut");
+  const footerModel = document.getElementById("footerModel");
 
+  const statModel = document.getElementById("statModel");
   const statClass = document.getElementById("statClass");
   const statConfidence = document.getElementById("statConfidence");
   const statEnergy = document.getElementById("statEnergy");
@@ -24,29 +26,75 @@
   const rescanBtn = document.getElementById("rescanBtn");
   const tileEnergy = document.getElementById("tileEnergy");
   const chipProto = document.getElementById("chipProto");
+  const modelBtns = document.querySelectorAll(".model-btn");
 
-  const SCAN_LOG_LINES = [
-    "INITIALIZING SENSOR ARRAY...",
-    "NORMALIZING INPUT (224×224)...",
-    "EXTRACTING FEATURES / RESNET-50 LAYER4...",
-    "COMPUTING ENERGY SCORE...",
-    "COMPARING AGAINST KNOWN-CLASS THRESHOLD...",
-  ];
-  // 1.2s for the item to ride in on the belt (see --enter in style.css), then
-  // one full 2s beam sweep before the verdict.
-  const MIN_SCAN_MS = 3200;
-
+  let selectedModel = "resnet50";
   let lastResult = null;
   let objectUrl = null;
+  let currentFile = null;
 
-  fetch("/api/meta")
-    .then((r) => r.json())
-    .then((m) => {
-      footerHeldOut.textContent = m.held_out_class;
-    })
-    .catch(() => {
-      footerHeldOut.textContent = "unavailable";
+  const MIN_SCAN_MS = 3200;
+
+  function getScanLogLines(model) {
+    if (model === "dinov2") {
+      return [
+        "INITIALIZING SENSOR ARRAY...",
+        "NORMALIZING INPUT (224×224)...",
+        "EXTRACTING PATCH TOKENS / DINOV2 (ViT-S/14)...",
+        "COMPUTING EMBEDDING PROTOTYPE DISTANCE...",
+        "EVALUATING ENERGY SCORE VS. BOUNDARY...",
+      ];
+    } else if (model === "vit") {
+      return [
+        "INITIALIZING SENSOR ARRAY...",
+        "NORMALIZING INPUT (224×224)...",
+        "EXTRACTING ATTENTION ROLLOUT / ViT-BASE...",
+        "PROJECTING POOLED CLS REPRESENTATION...",
+        "COMPARING AGAINST CALIBRATED THRESHOLD...",
+      ];
+    }
+    return [
+      "INITIALIZING SENSOR ARRAY...",
+      "NORMALIZING INPUT (224×224)...",
+      "EXTRACTING FEATURES / RESNET-50 LAYER4...",
+      "COMPUTING ENERGY SCORE...",
+      "COMPARING AGAINST KNOWN-CLASS THRESHOLD...",
+    ];
+  }
+
+  function fetchMetadata(modelId) {
+    fetch(`/api/meta?model=${encodeURIComponent(modelId)}`)
+      .then((r) => r.json())
+      .then((m) => {
+        footerHeldOut.textContent = m.held_out_class || "Banana";
+        if (footerModel) footerModel.textContent = m.active_model_name || "ResNet-50";
+        if (statThreshold && !lastResult) statThreshold.textContent = Number(m.energy_threshold).toFixed(3);
+      })
+      .catch(() => {
+        footerHeldOut.textContent = "unavailable";
+      });
+  }
+
+  fetchMetadata(selectedModel);
+
+  // Model selector click handlers
+  modelBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const modelId = btn.dataset.model;
+      if (!modelId || modelId === selectedModel) return;
+
+      modelBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      selectedModel = modelId;
+
+      fetchMetadata(selectedModel);
+
+      // If an image is currently inspected, re-scan with the newly selected model
+      if (currentFile && (chamber.dataset.state === "accepted" || chamber.dataset.state === "rejected")) {
+        handleFile(currentFile);
+      }
     });
+  });
 
   function setChamberState(state) {
     chamber.dataset.state = state;
@@ -75,6 +123,7 @@
     }
     fileInput.value = "";
     lastResult = null;
+    currentFile = null;
     viewToggle.setAttribute("aria-pressed", "false");
     viewToggle.textContent = "SHOW INSPECTION HEATMAP";
     tileEnergy.classList.remove("triggered");
@@ -120,8 +169,9 @@
   function runLogSequence() {
     logPanel.hidden = false;
     logLines.innerHTML = "";
-    const step = MIN_SCAN_MS / (SCAN_LOG_LINES.length + 0.4);
-    SCAN_LOG_LINES.forEach((line, i) => {
+    const lines = getScanLogLines(selectedModel);
+    const step = MIN_SCAN_MS / (lines.length + 0.4);
+    lines.forEach((line, i) => {
       const span = document.createElement("span");
       span.textContent = "> " + line;
       span.style.animationDelay = `${i * step}ms`;
@@ -136,6 +186,7 @@
       return;
     }
 
+    currentFile = file;
     errorMsg.hidden = true;
     resultPanel.hidden = true;
     stamp.textContent = "";
@@ -155,7 +206,10 @@
     form.append("file", file);
 
     const minDelay = new Promise((res) => setTimeout(res, MIN_SCAN_MS));
-    const request = fetch("/api/scan", { method: "POST", body: form }).then(async (r) => {
+    const request = fetch(`/api/scan?model=${encodeURIComponent(selectedModel)}`, {
+      method: "POST",
+      body: form,
+    }).then(async (r) => {
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
         throw new Error(body.detail || "The scan failed. Try again.");
@@ -177,12 +231,15 @@
     stamp.textContent = accepted ? "ACCEPTED" : "FOREIGN OBJECT";
     setStatus(accepted ? "accepted" : "rejected", accepted ? "ACCEPTED" : "FOREIGN OBJECT DETECTED");
 
+    if (statModel) statModel.textContent = result.model_name;
+    if (footerModel) footerModel.textContent = result.model_name;
+
     statClass.textContent = result.predicted_class;
     statConfidence.textContent = `${(result.confidence * 100).toFixed(1)}%`;
     statEnergy.textContent = result.energy_score.toFixed(3);
     statThreshold.textContent = result.energy_threshold.toFixed(3);
     statMsp.textContent = result.msp_score.toFixed(3);
-    statProto.textContent = result.proto_score.toFixed(1);
+    statProto.textContent = result.proto_score.toFixed(2);
 
     const delta = result.energy_score - result.energy_threshold;
     const percent = Math.min(100, Math.max(0, 50 + delta * 15));

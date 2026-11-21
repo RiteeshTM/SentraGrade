@@ -28,8 +28,11 @@ if ! command -v cloudflared >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Starting SentraGrade scanner on ${URL} ..."
-uv run uvicorn app.server:app --port "${PORT}" --host 127.0.0.1 &
+if command -v uv >/dev/null 2>&1; then
+  uv run uvicorn app.server:app --port "${PORT}" --host 127.0.0.1 &
+else
+  python3 -m uvicorn app.server:app --port "${PORT}" --host 127.0.0.1 &
+fi
 SERVER_PID=$!
 
 until curl -s -o /dev/null "${URL}/api/meta"; do
