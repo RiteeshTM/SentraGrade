@@ -56,7 +56,7 @@ def latency_ms(model, n=30):
 rows = []
 
 # 1) ResNet50, 5-class head, stem..layer2 frozen (matches
-#    other/02_supervised_cnn_baseline.ipynb's ResNetClassifier(freeze_until="layer2"))
+#    notebooks/02_supervised_cnn_baseline.ipynb's ResNetClassifier(freeze_until="layer2"))
 resnet = resnet50(weights=None)
 resnet.fc = nn.Linear(2048, 5)
 for module in [resnet.conv1, resnet.bn1, resnet.layer1, resnet.layer2]:
@@ -64,7 +64,7 @@ for module in [resnet.conv1, resnet.bn1, resnet.layer1, resnet.layer2]:
         p.requires_grad = False
 rows.append(("ResNet50 (5-class head)", count_params(resnet), count_params(resnet, True), gflops(resnet), latency_ms(resnet), 2048))
 
-# 2) ViT-B/16, frozen backbone + linear head (matches ViT_Model.ipynb's
+# 2) ViT-B/16, frozen backbone + linear head (matches notebooks/ViT_Model.ipynb's
 #    ViTBackbone with FREEZE_BACKBONE=True; timm's vit_base_patch16_224 is
 #    architecturally identical to google/vit-base-patch16-224-in21k)
 vit = timm.create_model("vit_base_patch16_224", pretrained=False, num_classes=5)
@@ -75,7 +75,7 @@ rows.append(("ViT-B/16 (5-class head)", count_params(vit), count_params(vit, Tru
 
 
 # 3) DINOv2 ViT-S/14 backbone + LayerNorm/Dropout/Linear head, fully
-#    unfrozen (matches SentraGrade_DINOv2_Notebook.ipynb's FineTunedClassifier)
+#    unfrozen (matches notebooks/SentraGrade_DINOv2_Notebook.ipynb's FineTunedClassifier)
 class DINOv2WithHead(nn.Module):
     def __init__(self, num_classes=5):
         super().__init__()

@@ -2,8 +2,8 @@
 SentraGrade — Results graphs for the Review 2 slides.
 
 Read-only: this script trains nothing. It reads the checkpoints and OOD-eval
-CSVs already produced by the training notebooks (other/02_supervised_cnn_baseline.ipynb
-+ other/03_ood_eval_gradcam.ipynb for PyTorch ResNet50, supervised_ood_eval_gradcam_tf.ipynb
+CSVs already produced by the training notebooks (notebooks/02_supervised_cnn_baseline.ipynb
++ notebooks/03_ood_eval_gradcam.ipynb for PyTorch ResNet50, notebooks/supervised_ood_eval_gradcam_tf.ipynb
 for the TF/Keras ResNet50) and re-derives every number and figure on the
 Results slides from them:
 
@@ -19,7 +19,7 @@ Requires ~/sentragrade_data/checkpoints/{supervised_cnn,supervised_cnn_tf}/
 (produced by the training notebooks) to exist. DINOv2's per-fold AUROC
 values are not saved anywhere as a CSV — they're only printed as notebook
 output — so they're hardcoded below from that printed output; update them
-if SentraGrade_DINOv2_Notebook.ipynb is re-run.
+if notebooks/SentraGrade_DINOv2_Notebook.ipynb is re-run.
 
 Usage:
     python analysis/make_result_graphs.py
@@ -213,9 +213,9 @@ plt.close(fig)
 
 # ---------------------------------------------------------------------------
 # g6 — per-epoch training curves, parsed from the printed stdout captured
-# inside other/02_supervised_cnn_baseline.ipynb (no re-training).
+# inside notebooks/02_supervised_cnn_baseline.ipynb (no re-training).
 # ---------------------------------------------------------------------------
-nb = json.load(open(PROJ / "other" / "02_supervised_cnn_baseline.ipynb"))
+nb = json.load(open(PROJ / "notebooks" / "02_supervised_cnn_baseline.ipynb"))
 log_text = ""
 for cell in nb["cells"]:
     if cell["cell_type"] == "code":
